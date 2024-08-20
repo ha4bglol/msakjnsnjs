@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Number Prediction App</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div id="app" class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold mb-8 text-center text-blue-600">Number Prediction App</h1>
+        
+        <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">Enter Initial Numbers</h2>
+            <input v-model="initialNumbers" placeholder="Enter up to 12 numbers separated by spaces" class="w-full p-3 border rounded-lg mb-6">
+            <button @click="initializeNumbers" class="bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-3 px-6 text-lg transition duration-300 ease-in-out">Add Numbers</button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">Enter Numbers</h2>
+            <div class="grid grid-cols-7 gap-4">
+                <button v-for="num in 37" :key="num-1" @click="addNumber(num-1)" class="bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-3 text-lg transition duration-300 ease-in-out">{{ num-1 }}</button>
+            </div>
+            <div class="mt-6">
+                <h3 class="text-2xl font-bold mb-3 text-gray-800">Numbers Entered:</h3>
+                <p v-if="numbers.length === 0" class="text-gray-500">No numbers entered yet.</p>
+                <div v-else class="flex flex-wrap">
+                    <span v-for="(num, index) in numbers" :key="index" class="bg-blue-100 text-blue-800 rounded-lg px-3 py-1 mr-2 mb-2 inline-block">{{ num }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">Predicted Number</h2>
+            <div class="flex justify-center space-x-4 mb-6">
+                <span v-if="predictedNumber !== null" class="text-5xl font-bold text-blue-600">{{ predictedNumber }}</span>
+                <p v-else class="text-gray-500">Prediction will appear here.</p>
+            </div>
+            <div v-if="predictedNumber !== null" class="flex justify-center space-x-4 mb-6">
+                <p class="text-xl font-bold text-gray-800">Left: {{ adjacentLeft }}</p>
+                <p class="text-xl font-bold text-gray-800">Right: {{ adjacentRight }}</p>
+            </div>
+            <div class="flex justify-center flex-wrap">
+                <button v-for="num in 37" :key="num-1" @click="verifyNumber(num-1)" class="bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg py-3 px-5 text-lg mr-2 mb-2 transition duration-300 ease-in-out">{{ num-1 }}</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        new Vue({
+            el: '#app',
+            data: {
+                initialNumbers: '',
+                numbers: [],
+                predictedNumber: null,
+                adjacentLeft: null,
+                adjacentRight: null,
+                rouletteOrder: [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26],
+            },
+            methods: {
+                initializeNumbers() {
+                    const nums = this.initialNumbers.split(' ').map(Number).filter(n => !isNaN(n) && n >= 0 && n <= 36);
+                    this.numbers = nums.slice(0, 12); // Limit to 12 numbers
+                    this.initialNumbers = '';
+                    this.runSimulation();
+                },
+                addNumber(num) {
+                    if (this.numbers.length >= 12) { // If there are already 12 numbers
+                        this.numbers.shift(); // Remove the oldest number
+                    }
+                    this.numbers.push(num); // Add the new number
+                    this.runSimulation();
+                },
+                verifyNumber(num) {
+                    if (this.predictedNumber === num) {
+                        console.log('Correct prediction!');
+                    } else {
+                        console.log('Incorrect prediction. Adding new number to the list.');
+                        this.addNumber(num);
+                    }
+                },
+                runSimulation() {
+                    this.simulateSpins(432); // Increased number of spins for better prediction
+                },
+                simulateSpins(spins) {
+                    for (let i = 0; i < spins; i++) {
+                        this.predictNumber();
+                    }
+                },
+                predictNumber() {
+                    if (this.numbers.length === 0) {
+                        this.predictedNumber = this.getRandomNumber();
+                    } else {
+                        const predictions = [
+                            this.modelSumOfDigits(),
+                            this.modelSubtractDigits(),
+                            this.modelDivideDigits(),
+                            this.predictFromAdjacentNumbers()
+                        ];
+                        this.predictedNumber = this.getBestPrediction(predictions);
+                        this.updateAdjacentNumbers(this.predictedNumber);
+                    }
+                },
+                getBestPrediction(predictions) {
+                    const frequency = predictions.reduce((acc, num) => {
+                        acc[num] = (acc[num] || 0) + 1;
+                        return acc;
+                    }, {});
+                    const sortedPredictions = Object.keys(frequency).sort((a, b) => frequency[b] - frequency[a]);
+                    return sortedPredictions[0] ? Number(sortedPredictions[0]) : this.getRandomNumber();
+                },
+                modelSumOfDigits() {
+                    return this.calculateWithDigits((a, b) => a + b);
+                },
+                modelSubtractDigits() {
+                    return this.calculateWithDigits((a, b) => Math.abs(a - b));
+                },
+                modelDivideDigits() {
+                    return this.calculateWithDigits((a, b) => (b !== 0) ? Math.floor(a / b) : a);
+                },
+                calculateWithDigits(operation) {
+                    const sumDigits = this.numbers.map(num => {
+                        const digits = num.toString().split('').map(Number);
+                        return digits.reduce(operation);
+                    });
+                    const index = sumDigits.reduce((acc, val) => acc + val, 0) % this.rouletteOrder.length;
+                    return this.rouletteOrder[index];
+                },
+                predictFromAdjacentNumbers() {
+                    const adjacentNumbers = this.numbers.flatMap(num => this.getAdjacentNumbers(num));
+                    const frequency = adjacentNumbers.reduce((acc, num) => {
+                        acc[num] = (acc[num] || 0) + 1;
+                        return acc;
+                    }, {});
+                    const sortedAdjacents = Object.keys(frequency).sort((a, b) => frequency[b] - frequency[a]);
+                    return sortedAdjacents[0] ? Number(sortedAdjacents[0]) : this.getRandomNumber();
+                },
+                getAdjacentNumbers(num) {
+                    const index = this.rouletteOrder.indexOf(num);
+                    return [
+                        this.rouletteOrder[(index - 1 + this.rouletteOrder.length) % this.rouletteOrder.length],
+                        this.rouletteOrder[(index + 1) % this.rouletteOrder.length]
+                    ];
+                },
+                updateAdjacentNumbers(predictedNumber) {
+                    const index = this.rouletteOrder.indexOf(predictedNumber);
+                    this.adjacentLeft = this.rouletteOrder[(index - 1 + this.rouletteOrder.length) % this.rouletteOrder.length];
+                    this.adjacentRight = this.rouletteOrder[(index + 1) % this.rouletteOrder.length];
+                },
+                getRandomNumber() {
+                    return Math.floor(Math.random() * 37);
+                },
+            },
+            created() {
+                this.runSimulation();
+            }
+        });
+    </script>
+</body>
+</html>
+
